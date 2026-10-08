@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>GeoCheck: Географический тренажер</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+  /* Общие стили */
+  body {
+    margin: 0;
+    background: #20262e;
+    color: #eef1f4;
+    font-family: Arial, sans-serif;
+  }
+
+  /* Шапка */
+  header {
+    background: #161b21;
+    padding: 15px 30px;
+    border-bottom: 1px solid #44505c;
+  }
+  .logo { font-size: 24px; font-weight: bold; }
+  .subtitle { color: #9aa5b1; margin-top: 5px; }
+
+  /* Основной блок */
+  .main { display: flex; gap: 20px; padding: 20px; }
+  .panel { width: 360px; background: #2d3640; border: 1px solid #44505c; border-radius: 8px; padding: 20px; }
+  .map-box { flex: 1; background: #2d3640; border: 1px solid #44505c; border-radius: 8px; padding: 20px; }
+
+  /* Панель теста */
+  .choose { color: #9aa5b1; margin-bottom: 8px; }
+  select { width: 100%; background: #20262e; color: #eef1f4; border: 1px solid #44505c; padding: 10px; border-radius: 5px; font-size: 15px; margin-bottom: 20px; }
+  .top-row { display: flex; justify-content: space-between; margin-bottom: 20px; }
+  .badge { background: #3b4856; padding: 4px 10px; border-radius: 5px; }
+  .target { background: #3b4856; border-radius: 8px; padding: 20px; text-align: center; margin: 15px 0; }
+  .target-label { color: #f2c14e; margin-bottom: 5px; }
+  .target-name { font-size: 26px; font-weight: bold; }
+
+  /* Ответ */
+  #feedback { display: none; padding: 12px; border-radius: 5px; margin-bottom: 15px; }
+  #feedback.correct { display: block; background: #2e5a3a; }
+  #feedback.wrong { display: block; background: #6b2c36; }
+
+  /* Кнопки */
+  button { width: 100%; background: #e07a3f; color: white; border: none; padding: 12px; border-radius: 5px; font-size: 16px; cursor: pointer; }
+  button:hover { background: #c4652d; }
+
+  /* Результаты */
+  #results { display: none; text-align: center; background: #20262e; border: 1px solid #e07a3f; border-radius: 8px; padding: 20px; margin-bottom: 15px; }
+  #grade { font-size: 40px; font-weight: bold; color: #5aa469; margin: 10px 0; }
+  #grade.bad { color: #d1495b; }
+
+  /* Карта */
+  .map-top { display: flex; justify-content: space-between; margin-bottom: 15px; }
+  .hint { color: #f2c14e; }
+  #map { height: 620px; background: white; border-radius: 5px; }
+
+  /* Адаптация для телефонов и планшетов */
+  @media (max-width: 800px) {
+    header { padding: 12px 16px; }
+    .logo { font-size: 20px; }
+    .subtitle { font-size: 13px; }
+    .main { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+    .panel, .map-box { width: auto; box-sizing: border-box; }
+    .panel { padding: 14px; }
+    .map-box { padding: 12px; }
+    #map { height: 65vh; min-height: 380px; max-height: 600px; }
+    .target-name { font-size: 22px; }
+    .top-row { font-size: 14px; }
+    button, select { font-size: 16px; min-height: 44px; }
+    footer { padding: 14px; font-size: 12px; }
+  }
+
+  @media (max-width: 420px) {
+    .main { padding: 8px; }
+    .panel, .map-box { padding: 10px; }
+    #map { height: 62vh; min-height: 340px; }
+    .target { padding: 14px; }
+    .target-name { font-size: 20px; }
+  }
+
+
+  footer { text-align: center; padding: 20px; color: #9aa5b1; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🗺️ GeoCheck: Географический тренажер</div>
+  <div class="subtitle">Отработка географических объектов на белой контурной карте</div>
+</header>
+
+<div class="main">
+  <div class="panel">
+    <div class="choose">Выберите категорию:</div>
+    <select id="category" onchange="start()">
+      <option value="ostrova">🏝️ Острова</option>
+      <option value="poluostrova">🗺️ Полуострова</option>
+      <option value="poluostrova_ru">🐻 Полуострова России</option>
+      <option value="ostrova_ru">❄️ Острова России</option>
+      <option value="pustyni">🏜️ Пустыни</option>
+      <option value="ravniny">🌾 Равнины и Плоскогорья</option>
+      <option value="gory">⛰️ Горы</option>
+      <option value="vulkany">🌋 Вулканы</option>
+      <option value="vershiny">🗻 Вершины</option>
+      <option value="morya">🌊 Моря</option>
+      <option value="prolivy">⚓ Проливы</option>
+      <option value="zalivy">🐚 Заливы</option>
+      <option value="ozera">💧 Озера</option>
+      <option value="vodopady">🚿 Водопады</option>
+      <option value="reki">🏞️ Реки</option>
+      <option value="mysy">🧭 Мысы</option>
+      <option value="goroda_ru">🏙️ Города России</option>
+      <option value="subekty_ru">🏛️ Субъекты России</option>
+      <option value="strany_eu">🏰 Страны Европы</option>
+      <option value="strany_as">🐉 Страны Азии</option>
+      <option value="strany_af">🦁 Страны Африки</option>
+      <option value="strany_na">🦅 Страны Северной Америки</option>
+      <option value="strany_sa">🦙 Страны Южной Америки</option>
+      <option value="strany_oc">🦘 Страны Океании</option>
+      <option value="strany_all">🌍 Все страны мира</option>
+      <option value="stolitsy_eu">🥐 Столицы Европы</option>
+      <option value="stolitsy_as">🍜 Столицы Азии</option>
+      <option value="stolitsy_af">🐘 Столицы Африки</option>
+      <option value="stolitsy_na">🌮 Столицы Северной Америки</option>
+      <option value="stolitsy_sa">⚽ Столицы Южной Америки</option>
+      <option value="stolitsy_oc">🥥 Столицы Океании</option>
+      <option value="stolitsy_all">🌐 Все столицы мира</option>
+    </select>
+
+    <div class="top-row">
+      <span class="badge" id="badge">Категория</span>
+      <span>Прогресс: <span id="step">0</span> / <span id="total">0</span></span>
+    </div>
+
+    <div id="task">Найдите и нажмите маркер на карте:</div>
+    <div class="target" id="target">
+      <div class="target-label" id="target-label">Категория</div>
+      <div class="target-name" id="target-name">...</div>
+    </div>
+
+    <div id="feedback"></div>
+
+    <div id="results">
+      <h3>Тест завершен! 🎓</h3>
+      <div id="score"></div>
+      <div id="grade"></div>
+      <div id="results-desc"></div>
+      <br>
+      <button onclick="start()">Пройти заново 🔄</button>
+    </div>
+
+    <button id="next-btn" onclick="next()" style="display:none;">Следующий объект →</button>
+  </div>
+
+  <div class="map-box">
+    <div class="map-top">
+      <b>Белая контурная карта (без подписей)</b>
+      <span class="hint" id="hint"></span>
+    </div>
+    <div id="map"></div>
+  </div>
+</div>
+
+<footer>© 2026 Контурный тренажер. Оценка от 1 до 5.</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+// ====== БАЗА ДАННЫХ ======
+var d = {};
+
+// ostrova
+d.ostrova = [
+  { name: "Гренландия", catName: "Остров", coords: [72, -40] },
+  { name: "Мадагаскар", catName: "Остров", coords: [-20, 47] },
+  { name: "Новая Гвинея", catName: "Остров", coords: [-4, 138] },
+  { name: "Калимантан (Борнео)", catName: "Остров", coords: [1, 114] },
+  { name: "Гавайи", catName: "Остров", coords: [19.9, -155.6] },
+  { name: "Шри-Ланка", catName: "Остров", coords: [7.9, 80.7] },
+  { name: "Тасмания", catName: "Остров", coords: [-42, 146.5] },
+  { name: "Японские острова", catName: "Остров", coords: [36, 138] },
+  { name: "Ява", catName: "Остров", coords: [-7.6, 110.7] },
+  { name: "Исландия", catName: "Остров", coords: [65, -19] },
+  { name: "Огненная Земля", catName: "Остров", coords: [-54, -68] },
+  { name: "Филиппинские острова", catName: "Остров", coords: [12.9, 121.8] },
+  { name: "Куба", catName: "Остров", coords: [21.5, -79] },
+  { name: "Гаити", catName: "Остров", coords: [19, -72.4] },
+  { name: "Ямайка", catName: "Остров", coords: [18.1, -77.3] },
+  { name: "Суматра", catName: "Остров", coords: [0, 102] }
+];
+
+// poluostrova
+d.poluostrova = [
+  { name: "Аравийский полуостров", catName: "Полуостров", coords: [23, 47] },
+  { name: "Индостан", catName: "Полуостров", coords: [20, 78] },
+  { name: "Скандинавский полуостров", catName: "Полуостров", coords: [63, 15] },
+  { name: "Лабрадор", catName: "Полуостров", coords: [53, -65] },
+  { name: "Пиренейский полуостров", catName: "Полуостров", coords: [40, -4] },
+  { name: "Индокитай", catName: "Полуостров", coords: [15, 101] },
+  { name: "Апеннинский полуостров", catName: "Полуостров", coords: [42, 13] },
+  { name: "Сомали", catName: "Полуостров", coords: [9, 46] },
+  { name: "Балканский полуостров", catName: "Полуостров", coords: [42, 22] },
+  { name: "Аляска", catName: "Полуостров", coords: [64, -152] }
+];
+
+// poluostrova_ru
+d.poluostrova_ru = [
+  { name: "Кольский полуостров", catName: "Полуостров РФ", coords: [67, 36] },
+  { name: "Канин", catName: "Полуостров РФ", coords: [67.8, 45] },
+  { name: "Ямал", catName: "Полуостров РФ", coords: [70, 70] },
+  { name: "Гыданский полуостров", catName: "Полуостров РФ", coords: [71, 78] },
+  { name: "Таймыр", catName: "Полуостров РФ", coords: [74, 100] },
+  { name: "Чукотский полуостров", catName: "Полуостров РФ", coords: [66, -172] },
+  { name: "Камчатка", catName: "Полуостров РФ", coords: [56, 160] },
+  { name: "Крымский полуостров", catName: "Полуостров РФ", coords: [45.3, 34.4] }
+];
+
+// ostrova_ru
+d.ostrova_ru = [
+  { name: "Северная Земля", catName: "Остров РФ", coords: [79.5, 98] },
+  { name: "Вайгач", catName: "Остров РФ", coords: [70, 59.5] },
+  { name: "Курильские острова", catName: "Остров РФ", coords: [46.5, 151.5] },
+  { name: "Остров Врангеля", catName: "Остров РФ", coords: [71.2, -179.4] },
+  { name: "Командорские острова", catName: "Остров РФ", coords: [55.2, 166] },
+  { name: "Сахалин", catName: "Остров РФ", coords: [51, 143] }
+];
+
+// pustyni
+d.pustyni = [
+  { name: "Сахара", catName: "Пустыня", coords: [23, 12] },
+  { name: "Калахари", catName: "Пустыня", coords: [-23, 22] },
+  { name: "Гоби", catName: "Пустыня", coords: [42, 105] },
+  { name: "Большая Песчаная пустыня", catName: "Пустыня", coords: [-20, 125] },
+  { name: "Аравийская пустыня", catName: "Пустыня", coords: [25, 37.5] },
+  { name: "Патагония", catName: "Пустыня", coords: [-43, -69] },
+  { name: "Намиб", catName: "Пустыня", coords: [-24, 15] }
+];
+
+// ravniny
+d.ravniny = [
+  { name: "Амазонская низменность", catName: "Равнина / Плоскогорье", coords: [-3, -62] },
+  { name: "Бразильское плоскогорье", catName: "Равнина / Плоскогорье", coords: [-14, -51] },
+  { name: "Великие равнины", catName: "Равнина / Плоскогорье", coords: [42, -102] },
+  { name: "Тибет", catName: "Равнина / Плоскогорье", coords: [32, 89] },
+  { name: "Великая Китайская равнина", catName: "Равнина / Плоскогорье", coords: [35, 116] },
+  { name: "Восточно-Европейская равнина", catName: "Равнина / Плоскогорье", coords: [55, 40] },
+  { name: "Западно-Сибирская равнина", catName: "Равнина / Плоскогорье", coords: [60, 75] },
+  { name: "Среднесибирское плоскогорье", catName: "Равнина / Плоскогорье", coords: [65, 100] }
+];
+
+// gory
+d.gory = [
+  { name: "Кордильеры", catName: "Горы", coords: [40, -115] },
+  { name: "Анды", catName: "Горы", coords: [-20, -70] },
+  { name: "Атлас", catName: "Горы", coords: [31.5, -8] },
+  { name: "Большой Водораздельный хребет", catName: "Горы", coords: [-25, 148] },
+  { name: "Гималаи", catName: "Горы", coords: [28, 84] },
+  { name: "Тянь-Шань", catName: "Горы", coords: [42, 80] },
+  { name: "Альпы", catName: "Горы", coords: [46.5, 10] },
+  { name: "Карпаты", catName: "Горы", coords: [47, 25] },
+  { name: "Уральские горы", catName: "Горы", coords: [60, 60] },
+  { name: "Кавказ", catName: "Горы", coords: [43, 43] },
+  { name: "Кунь-Лунь", catName: "Горы", coords: [36, 84] },
+  { name: "Хребет Черского", catName: "Горы", coords: [64, 142] }
+];
+
+// vulkany
+d.vulkany = [
+  { name: "Мауна-Лоа", catName: "Вулкан", coords: [19.5, -155.6] },
+  { name: "Орисаба", catName: "Вулкан", coords: [19, -97.3] },
+  { name: "Эребус", catName: "Вулкан", coords: [-77.5, 167.2] },
+  { name: "Гекла", catName: "Вулкан", coords: [64, -19.7] },
+  { name: "Этна", catName: "Вулкан", coords: [37.8, 15] },
+  { name: "Везувий", catName: "Вулкан", coords: [40.8, 14.4] },
+  { name: "Кракатау", catName: "Вулкан", coords: [-6.1, 105.4] },
+  { name: "Ключевская Сопка", catName: "Вулкан", coords: [56.1, 160.6] },
+  { name: "Фудзияма", catName: "Вулкан", coords: [35.4, 138.7] },
+  { name: "Камерун", catName: "Вулкан", coords: [4.2, 9.2] }
+];
+
+// vershiny
+d.vershiny = [
+  { name: "Аконкагуа", catName: "Вершина", coords: [-32.7, -70] },
+  { name: "Килиманджаро", catName: "Вершина", coords: [-3.1, 37.4] },
+  { name: "Мак-Кинли (Денали)", catName: "Вершина", coords: [63.1, -151] },
+  { name: "Джомолунгма (Эверест)", catName: "Вершина", coords: [28, 86.9] },
+  { name: "Косцюшко", catName: "Вершина", coords: [-36.5, 148.3] },
+  { name: "Массив Винсон", catName: "Вершина", coords: [-78.5, -85.6] }
+];
+
+// morya
+d.morya = [
+  { name: "Баренцево море", catName: "Море", coords: [72, 40] },
+  { name: "Берингово море", catName: "Море", coords: [58, -175] },
+  { name: "Карское море", catName: "Море", coords: [75, 75] },
+  { name: "Черное море", catName: "Море", coords: [43, 35] },
+  { name: "Охотское море", catName: "Море", coords: [55, 145] },
+  { name: "Карибское море", catName: "Море", coords: [15, -75] },
+  { name: "Средиземное море", catName: "Море", coords: [35, 18] },
+  { name: "Красное море", catName: "Море", coords: [20, 38] },
+  { name: "Аравийское море", catName: "Море", coords: [15, 65] },
+  { name: "Японское море", catName: "Море", coords: [40, 135] },
+  { name: "Море Лаптевых", catName: "Море", coords: [75, 125] },
+  { name: "Азовское море", catName: "Море", coords: [46, 37] },
+  { name: "Южно-Китайское море", catName: "Море", coords: [12, 113] },
+  { name: "Филиппинское море", catName: "Море", coords: [20, 130] },
+  { name: "Гренландское море", catName: "Море", coords: [75, -10] }
+];
+
+// prolivy
+d.prolivy = [
+  { name: "Магелланов пролив", catName: "Пролив", coords: [-53, -70] },
+  { name: "Пролив Дрейка", catName: "Пролив", coords: [-60, -65] },
+  { name: "Берингов пролив", catName: "Пролив", coords: [65.5, -169] },
+  { name: "Гибралтарский пролив", catName: "Пролив", coords: [36, -5.3] },
+  { name: "Татарский пролив", catName: "Пролив", coords: [50, 141.5] },
+  { name: "Пролив Лаперуза", catName: "Пролив", coords: [45.7, 142] },
+  { name: "Мозамбикский пролив", catName: "Пролив", coords: [-18, 41] },
+  { name: "Карские Ворота", catName: "Пролив", coords: [70.5, 58] },
+  { name: "Пролив Вилькицкого", catName: "Пролив", coords: [77.9, 102] },
+  { name: "Пролив Санникова", catName: "Пролив", coords: [74.5, 140] }
+];
+
+// zalivy
+d.zalivy = [
+  { name: "Гудзонов залив", catName: "Залив", coords: [60, -85] },
+  { name: "Мексиканский залив", catName: "Залив", coords: [25, -90] },
+  { name: "Гвинейский залив", catName: "Залив", coords: [2, 2] },
+  { name: "Персидский залив", catName: "Залив", coords: [27, 51] },
+  { name: "Бенгальский залив", catName: "Залив", coords: [15, 88] },
+  { name: "Большой Австралийский залив", catName: "Залив", coords: [-33, 130] },
+  { name: "Бискайский залив", catName: "Залив", coords: [45, -4] }
+];
+
+// ozera
+d.ozera = [
+  { name: "Озеро Верхнее", catName: "Озеро", coords: [47.5, -87.5] },
+  { name: "Озеро Мичиган", catName: "Озеро", coords: [44, -87] },
+  { name: "Озеро Эри", catName: "Озеро", coords: [42.2, -81.2] },
+  { name: "Озеро Гурон", catName: "Озеро", coords: [45, -82.5] },
+  { name: "Аральское море-озеро", catName: "Озеро", coords: [45, 59] },
+  { name: "Байкал", catName: "Озеро", coords: [53.5, 108] },
+  { name: "Каспийское море-озеро", catName: "Озеро", coords: [42, 51] },
+  { name: "Виктория", catName: "Озеро", coords: [-1, 33] },
+  { name: "Ньяса (Малави)", catName: "Озеро", coords: [-12, 34.5] },
+  { name: "Чад", catName: "Озеро", coords: [13, 14] },
+  { name: "Эйр-Норт", catName: "Озеро", coords: [-28.4, 137.4] }
+];
+
+// vodopady
+d.vodopady = [
+  { name: "Водопад Анхель", catName: "Водопад", coords: [5.96, -62.5] },
+  { name: "Ниагарский водопад", catName: "Водопад", coords: [43.1, -79.1] },
+  { name: "Водопад Виктория", catName: "Водопад", coords: [-17.9, 25.9] }
+];
+
+// reki
+d.reki = [
+  { name: "Нил", catName: "Река", coords: [20, 30] },
+  { name: "Конго", catName: "Река", coords: [-2, 22] },
+  { name: "Замбези", catName: "Река", coords: [-15, 28] },
+  { name: "Лимпопо", catName: "Река", coords: [-24, 32] },
+  { name: "Оранжевая", catName: "Река", coords: [-29, 20] },
+  { name: "Нигер", catName: "Река", coords: [14, 1] },
+  { name: "Амазонка", catName: "Река", coords: [-3, -60] },
+  { name: "Парана", catName: "Река", coords: [-27, -57] },
+  { name: "Миссисипи", catName: "Река", coords: [35, -90] },
+  { name: "Миссури", catName: "Река", coords: [42, -100] },
+  { name: "Волга", catName: "Река", coords: [56, 46] },
+  { name: "Днепр", catName: "Река", coords: [48, 35] },
+  { name: "Дунай", catName: "Река", coords: [45, 20] },
+  { name: "Обь", catName: "Река", coords: [61, 69] },
+  { name: "Иртыш", catName: "Река", coords: [52, 76] },
+  { name: "Енисей", catName: "Река", coords: [63, 89] },
+  { name: "Лена", catName: "Река", coords: [62, 129] },
+  { name: "Янцзы", catName: "Река", coords: [30, 112] },
+  { name: "Хуанхэ", catName: "Река", coords: [37, 110] },
+  { name: "Амур", catName: "Река", coords: [50, 127] },
+  { name: "Муррей", catName: "Река", coords: [-34, 142] }
+];
+
+// mysy
+d.mysy = [
+  { name: "Челюскин", catName: "Мыс", coords: [77.7, 104.3] },
+  { name: "Дежнева", catName: "Мыс", coords: [66.1, -169.7] }
+];
+
+// goroda_ru
+d.goroda_ru = [
+  { name: "Москва", catName: "Город РФ", coords: [55.76, 37.62] },
+  { name: "Санкт-Петербург", catName: "Город РФ", coords: [59.93, 30.34] },
+  { name: "Севастополь", catName: "Город РФ", coords: [44.62, 33.53] },
+  { name: "Нижний Новгород", catName: "Город РФ", coords: [56.33, 44.01] },
+  { name: "Самара", catName: "Город РФ", coords: [53.2, 50.1] },
+  { name: "Казань", catName: "Город РФ", coords: [55.83, 49.07] },
+  { name: "Волгоград", catName: "Город РФ", coords: [48.71, 44.51] },
+  { name: "Ростов-на-Дону", catName: "Город РФ", coords: [47.24, 39.7] },
+  { name: "Воронеж", catName: "Город РФ", coords: [51.67, 39.18] },
+  { name: "Краснодар", catName: "Город РФ", coords: [45.04, 38.98] },
+  { name: "Екатеринбург", catName: "Город РФ", coords: [56.84, 60.61] },
+  { name: "Уфа", catName: "Город РФ", coords: [54.74, 55.97] },
+  { name: "Пермь", catName: "Город РФ", coords: [58.01, 56.25] },
+  { name: "Челябинск", catName: "Город РФ", coords: [55.16, 61.44] },
+  { name: "Новосибирск", catName: "Город РФ", coords: [55.01, 82.94] },
+  { name: "Омск", catName: "Город РФ", coords: [54.99, 73.32] },
+  { name: "Красноярск", catName: "Город РФ", coords: [56.02, 92.89] },
+  { name: "Владивосток", catName: "Город РФ", coords: [43.12, 131.89] },
+  { name: "Хабаровск", catName: "Город РФ", coords: [48.48, 135.07] }
+];
+
+// subekty_ru
+d.subekty_ru = [
+  { name: "Амурская область", catName: "Субъект РФ", coords: [53, 127.5] },
+  { name: "Архангельская область", catName: "Субъект РФ", coords: [63, 42] },
+  { name: "Астраханская область", catName: "Субъект РФ", coords: [46.3, 47.9] },
+  { name: "Белгородская область", catName: "Субъект РФ", coords: [50.7, 36.6] },
+  { name: "Брянская область", catName: "Субъект РФ", coords: [53.2, 33.4] },
+  { name: "Владимирская область", catName: "Субъект РФ", coords: [56.1, 40.4] },
+  { name: "Волгоградская область", catName: "Субъект РФ", coords: [49.6, 44.5] },
+  { name: "Вологодская область", catName: "Субъект РФ", coords: [59.2, 39.9] },
+  { name: "Воронежская область", catName: "Субъект РФ", coords: [51, 40] },
+  { name: "Ивановская область", catName: "Субъект РФ", coords: [57, 41] },
+  { name: "Иркутская область", catName: "Субъект РФ", coords: [57, 106] },
+  { name: "Калининградская область", catName: "Субъект РФ", coords: [54.7, 21] },
+  { name: "Калужская область", catName: "Субъект РФ", coords: [54.5, 35.5] },
+  { name: "Кемеровская область", catName: "Субъект РФ", coords: [54.5, 87] },
+  { name: "Кировская область", catName: "Субъект РФ", coords: [58.6, 49.7] },
+  { name: "Костромская область", catName: "Субъект РФ", coords: [58.5, 44.5] },
+  { name: "Курганская область", catName: "Субъект РФ", coords: [55.4, 65.3] },
+  { name: "Курская область", catName: "Субъект РФ", coords: [51.7, 36.2] },
+  { name: "Ленинградская область", catName: "Субъект РФ", coords: [60, 32] },
+  { name: "Липецкая область", catName: "Субъект РФ", coords: [52.6, 39.6] },
+  { name: "Магаданская область", catName: "Субъект РФ", coords: [62, 153] },
+  { name: "Московская область", catName: "Субъект РФ", coords: [55.5, 37.8] },
+  { name: "Мурманская область", catName: "Субъект РФ", coords: [67.9, 35] },
+  { name: "Нижегородская область", catName: "Субъект РФ", coords: [56.3, 44] },
+  { name: "Новгородская область", catName: "Субъект РФ", coords: [58.5, 32] },
+  { name: "Новосибирская область", catName: "Субъект РФ", coords: [55, 79.5] },
+  { name: "Омская область", catName: "Субъект РФ", coords: [56, 73.5] },
+  { name: "Оренбургская область", catName: "Субъект РФ", coords: [52, 54.5] },
+  { name: "Орловская область", catName: "Субъект РФ", coords: [52.9, 36.6] },
+  { name: "Пензенская область", catName: "Субъект РФ", coords: [53.2, 44] },
+  { name: "Псковская область", catName: "Субъект РФ", coords: [57, 29] },
+  { name: "Ростовская область", catName: "Субъект РФ", coords: [47.7, 40.5] },
+  { name: "Рязанская область", catName: "Субъект РФ", coords: [54.4, 40.5] },
+  { name: "Самарская область", catName: "Субъект РФ", coords: [53.2, 50] },
+  { name: "Саратовская область", catName: "Субъект РФ", coords: [51.5, 46.5] },
+  { name: "Сахалинская область", catName: "Субъект РФ", coords: [50, 143] },
+  { name: "Свердловская область", catName: "Субъект РФ", coords: [59, 62] },
+  { name: "Смоленская область", catName: "Субъект РФ", coords: [54.8, 32] },
+  { name: "Тамбовская область", catName: "Субъект РФ", coords: [52.8, 41.5] },
+  { name: "Тверская область", catName: "Субъект РФ", coords: [57, 35] },
+  { name: "Томская область", catName: "Субъект РФ", coords: [58.5, 82] },
+  { name: "Тульская область", catName: "Субъект РФ", coords: [54, 37.5] },
+  { name: "Тюменская область", catName: "Субъект РФ", coords: [57.5, 66] },
+  { name: "Ульяновская область", catName: "Субъект РФ", coords: [54, 47.5] },
+  { name: "Челябинская область", catName: "Субъект РФ", coords: [54.4, 60.7] },
+  { name: "Ярославская область", catName: "Субъект РФ", coords: [57.8, 39.5] },
+  { name: "Еврейская автономная область", catName: "Субъект РФ", coords: [48.6, 132.5] },
+  { name: "Алтайский край", catName: "Субъект РФ", coords: [52.5, 82] },
+  { name: "Забайкальский край", catName: "Субъект РФ", coords: [53, 117] },
+  { name: "Камчатский край", catName: "Субъект РФ", coords: [57, 160] },
+  { name: "Краснодарский край", catName: "Субъект РФ", coords: [45.2, 39.5] },
+  { name: "Красноярский край", catName: "Субъект РФ", coords: [64, 94] },
+  { name: "Пермский край", catName: "Субъект РФ", coords: [59, 56.5] },
+  { name: "Приморский край", catName: "Субъект РФ", coords: [45, 134] },
+  { name: "Ставропольский край", catName: "Субъект РФ", coords: [44.9, 43] },
+  { name: "Хабаровский край", catName: "Субъект РФ", coords: [54, 136] },
+  { name: "Ненецкий автономный округ", catName: "Субъект РФ", coords: [67.6, 54] },
+  { name: "Ханты-Мансийский автономный округ", catName: "Субъект РФ", coords: [62, 70] },
+  { name: "Чукотский автономный округ", catName: "Субъект РФ", coords: [66.5, 171] },
+  { name: "Ямало-Ненецкий автономный округ", catName: "Субъект РФ", coords: [66.5, 72] }
+];
+
+// strany_eu
+d.strany_eu = [
+  { name: "Австрия", catName: "Страна Европы", coords: [47.5, 14.5] },
+  { name: "Албания", catName: "Страна Европы", coords: [41.2, 20.2] },
+  { name: "Андорра", catName: "Страна Европы", coords: [42.5, 1.6] },
+  { name: "Беларусь", catName: "Страна Европы", coords: [53.7, 27.9] },
+  { name: "Бельгия", catName: "Страна Европы", coords: [50.5, 4.4] },
+  { name: "Болгария", catName: "Страна Европы", coords: [42.7, 25.4] },
+  { name: "Босния и Герцеговина", catName: "Страна Европы", coords: [44, 17.7] },
+  { name: "Ватикан", catName: "Страна Европы", coords: [41.9, 12.45] },
+  { name: "Великобритания", catName: "Страна Европы", coords: [55.3, -3.4] },
+  { name: "Венгрия", catName: "Страна Европы", coords: [47.1, 19.5] },
+  { name: "Германия", catName: "Страна Европы", coords: [51.1, 10.4] },
+  { name: "Греция", catName: "Страна Европы", coords: [39, 21.8] },
+  { name: "Дания", catName: "Страна Европы", coords: [56.2, 9.5] },
+  { name: "Ирландия", catName: "Страна Европы", coords: [53.4, -8.2] },
+  { name: "Исландия", catName: "Страна Европы", coords: [64.9, -19] },
+  { name: "Испания", catName: "Страна Европы", coords: [40.4, -3.7] },
+  { name: "Италия", catName: "Страна Европы", coords: [41.8, 12.5] },
+  { name: "Кипр", catName: "Страна Европы", coords: [35, 33] },
+  { name: "Латвия", catName: "Страна Европы", coords: [56.8, 24.6] },
+  { name: "Литва", catName: "Страна Европы", coords: [55.1, 23.8] },
+  { name: "Лихтенштейн", catName: "Страна Европы", coords: [47.2, 9.55] },
+  { name: "Люксембург", catName: "Страна Европы", coords: [49.8, 6.1] },
+  { name: "Мальта", catName: "Страна Европы", coords: [35.9, 14.4] },
+  { name: "Молдова", catName: "Страна Европы", coords: [47.2, 28.4] },
+  { name: "Монако", catName: "Страна Европы", coords: [43.7, 7.4] },
+  { name: "Нидерланды", catName: "Страна Европы", coords: [52.1, 5.2] },
+  { name: "Норвегия", catName: "Страна Европы", coords: [60.4, 8.4] },
+  { name: "Польша", catName: "Страна Европы", coords: [51.9, 19.1] },
+  { name: "Португалия", catName: "Страна Европы", coords: [39.3, -8.2] },
+  { name: "Румыния", catName: "Страна Европы", coords: [45.9, 24.9] },
+  { name: "Сан-Марино", catName: "Страна Европы", coords: [43.9, 12.45] },
+  { name: "Северная Македония", catName: "Страна Европы", coords: [41.6, 21.7] },
+  { name: "Сербия", catName: "Страна Европы", coords: [44, 21] },
+  { name: "Словакия", catName: "Страна Европы", coords: [48.6, 19.6] },
+  { name: "Словения", catName: "Страна Европы", coords: [46.1, 14.8] },
+  { name: "Украина", catName: "Страна Европы", coords: [48.3, 31.1] },
+  { name: "Финляндия", catName: "Страна Европы", coords: [61.9, 25.7] },
+  { name: "Франция", catName: "Страна Европы", coords: [46.2, 2.2] },
+  { name: "Хорватия", catName: "Страна Европы", coords: [45.1, 15.2] },
+  { name: "Черногория", catName: "Страна Европы", coords: [42.7, 19.3] },
+  { name: "Чехия", catName: "Страна Европы", coords: [49.8, 15.4] },
+  { name: "Швейцария", catName: "Страна Европы", coords: [46.8, 8.2] },
+  { name: "Швеция", catName: "Страна Европы", coords: [60.1, 18.6] },
+  { name: "Эстония", catName: "Страна Европы", coords: [58.5, 25] }
+];
+
+// stolitsy_eu
+d.stolitsy_eu = [
+  { name: "Вена", catName: "Столица Европы", coords: [48.2, 16.4] },
+  { name: "Тирана", catName: "Столица Европы", coords: [41.3, 19.8] },
+  { name: "Андорра-ла-Велья", catName: "Столица Европы", coords: [42.5, 1.5] },
+  { name: "Минск", catName: "Столица Европы", coords: [53.9, 27.6] },
+  { name: "Брюссель", catName: "Столица Европы", coords: [50.8, 4.4] },
+  { name: "София", catName: "Столица Европы", coords: [42.7, 23.3] },
+  { name: "Сараево", catName: "Столица Европы", coords: [43.9, 18.4] },
+  { name: "Ватикан", catName: "Столица Европы", coords: [41.9, 12.45] },
+  { name: "Лондон", catName: "Столица Европы", coords: [51.5, -0.1] },
+  { name: "Будапешт", catName: "Столица Европы", coords: [47.5, 19] },
+  { name: "Берлин", catName: "Столица Европы", coords: [52.5, 13.4] },
+  { name: "Афины", catName: "Столица Европы", coords: [38, 23.7] },
+  { name: "Копенгаген", catName: "Столица Европы", coords: [55.7, 12.6] },
+  { name: "Дублин", catName: "Столица Европы", coords: [53.3, -6.3] },
+  { name: "Рейкьявик", catName: "Столица Европы", coords: [64.1, -21.9] },
+  { name: "Мадрид", catName: "Столица Европы", coords: [40.4, -3.7] },
+  { name: "Рим", catName: "Столица Европы", coords: [41.9, 12.5] },
+  { name: "Никосия", catName: "Столица Европы", coords: [35.2, 33.4] },
+  { name: "Рига", catName: "Столица Европы", coords: [56.9, 24.1] },
+  { name: "Вильнюс", catName: "Столица Европы", coords: [54.7, 25.3] },
+  { name: "Вадуц", catName: "Столица Европы", coords: [47.1, 9.5] },
+  { name: "Люксембург", catName: "Столица Европы", coords: [49.6, 6.1] },
+  { name: "Валлетта", catName: "Столица Европы", coords: [35.9, 14.5] },
+  { name: "Кишинёв", catName: "Столица Европы", coords: [47, 28.9] },
+  { name: "Монако", catName: "Столица Европы", coords: [43.7, 7.4] },
+  { name: "Амстердам", catName: "Столица Европы", coords: [52.4, 4.9] },
+  { name: "Осло", catName: "Столица Европы", coords: [59.9, 10.8] },
+  { name: "Варшава", catName: "Столица Европы", coords: [52.2, 21] },
+  { name: "Лиссабон", catName: "Столица Европы", coords: [38.7, -9.1] },
+  { name: "Бухарест", catName: "Столица Европы", coords: [44.4, 26.1] },
+  { name: "Сан-Марино", catName: "Столица Европы", coords: [43.9, 12.45] },
+  { name: "Скопье", catName: "Столица Европы", coords: [42, 21.4] },
+  { name: "Белград", catName: "Столица Европы", coords: [44.8, 20.5] },
+  { name: "Братислава", catName: "Столица Европы", coords: [48.1, 17.1] },
+  { name: "Любляна", catName: "Столица Европы", coords: [46.1, 14.5] },
+  { name: "Киев", catName: "Столица Европы", coords: [50.5, 30.5] },
+  { name: "Хельсинки", catName: "Столица Европы", coords: [60.2, 24.9] },
+  { name: "Париж", catName: "Столица Европы", coords: [48.9, 2.4] },
+  { name: "Загреб", catName: "Столица Европы", coords: [45.8, 16] },
+  { name: "Подгорица", catName: "Столица Европы", coords: [42.4, 19.3] },
+  { name: "Прага", catName: "Столица Европы", coords: [50.1, 14.4] },
+  { name: "Берн", catName: "Столица Европы", coords: [46.9, 7.4] },
+  { name: "Стокгольм", catName: "Столица Европы", coords: [59.3, 18.1] },
+  { name: "Таллин", catName: "Столица Европы", coords: [59.4, 24.7] }
+];
+
+// strany_as
+d.strany_as = [
+  { name: "Азербайджан", catName: "Страна Азии", coords: [40.4, 47.6] },
+  { name: "Армения", catName: "Страна Азии", coords: [40.1, 45] },
+  { name: "Афганистан", catName: "Страна Азии", coords: [33.9, 67.7] },
+  { name: "Бангладеш", catName: "Страна Азии", coords: [23.7, 90.4] },
+  { name: "Бахрейн", catName: "Страна Азии", coords: [26, 50.5] },
+  { name: "Бруней", catName: "Страна Азии", coords: [4.5, 114.7] },
+  { name: "Бутан", catName: "Страна Азии", coords: [27.5, 90.4] },
+  { name: "Восточный Тимор", catName: "Страна Азии", coords: [-8.8, 125.7] },
+  { name: "Вьетнам", catName: "Страна Азии", coords: [14, 108.3] },
+  { name: "Грузия", catName: "Страна Азии", coords: [42.3, 43.4] },
+  { name: "Израиль", catName: "Страна Азии", coords: [31, 34.8] },
+  { name: "Индия", catName: "Страна Азии", coords: [20.6, 78.9] },
+  { name: "Индонезия", catName: "Страна Азии", coords: [-0.8, 113.9] },
+  { name: "Иордания", catName: "Страна Азии", coords: [30.6, 36.2] },
+  { name: "Ирак", catName: "Страна Азии", coords: [33.2, 43.7] },
+  { name: "Иран", catName: "Страна Азии", coords: [32.4, 53.7] },
+  { name: "Йемен", catName: "Страна Азии", coords: [15.6, 48.5] },
+  { name: "Казахстан", catName: "Страна Азии", coords: [48, 67] },
+  { name: "Камбоджа", catName: "Страна Азии", coords: [12.6, 104.9] },
+  { name: "Катар", catName: "Страна Азии", coords: [25.4, 51.2] },
+  { name: "Киргизия", catName: "Страна Азии", coords: [41.2, 74.8] },
+  { name: "Китай", catName: "Страна Азии", coords: [35.9, 104.2] },
+  { name: "КНДР", catName: "Страна Азии", coords: [40.3, 127.5] },
+  { name: "Кувейт", catName: "Страна Азии", coords: [29.3, 47.5] },
+  { name: "Лаос", catName: "Страна Азии", coords: [19.9, 102.5] },
+  { name: "Ливан", catName: "Страна Азии", coords: [33.9, 35.9] },
+  { name: "Малайзия", catName: "Страна Азии", coords: [4.2, 102] },
+  { name: "Мальдивы", catName: "Страна Азии", coords: [3.2, 73.2] },
+  { name: "Монголия", catName: "Страна Азии", coords: [46.9, 103.8] },
+  { name: "Мьянма", catName: "Страна Азии", coords: [21.9, 96] },
+  { name: "Непал", catName: "Страна Азии", coords: [28.4, 84.1] },
+  { name: "ОАЭ", catName: "Страна Азии", coords: [23.4, 53.8] },
+  { name: "Оман", catName: "Страна Азии", coords: [21.5, 55.9] },
+  { name: "Пакистан", catName: "Страна Азии", coords: [30.4, 69.3] },
+  { name: "Республика Корея", catName: "Страна Азии", coords: [35.9, 127.8] },
+  { name: "Саудовская Аравия", catName: "Страна Азии", coords: [23.9, 45.1] },
+  { name: "Сингапур", catName: "Страна Азии", coords: [1.35, 103.8] },
+  { name: "Сирия", catName: "Страна Азии", coords: [34.8, 39] },
+  { name: "Таджикистан", catName: "Страна Азии", coords: [38.9, 71.3] },
+  { name: "Таиланд", catName: "Страна Азии", coords: [15.9, 101] },
+  { name: "Туркменистан", catName: "Страна Азии", coords: [39, 59.6] },
+  { name: "Турция", catName: "Страна Азии", coords: [39, 35.2] },
+  { name: "Узбекистан", catName: "Страна Азии", coords: [41.4, 64.6] },
+  { name: "Филиппины", catName: "Страна Азии", coords: [12.9, 121.8] },
+  { name: "Шри-Ланка", catName: "Страна Азии", coords: [7.9, 80.8] },
+  { name: "Япония", catName: "Страна Азии", coords: [36.2, 138.3] }
+];
+
+// stolitsy_as
+d.stolitsy_as = [
+  { name: "Баку", catName: "Столица Азии", coords: [40.4, 49.9] },
+  { name: "Ереван", catName: "Столица Азии", coords: [40.2, 44.5] },
+  { name: "Кабул", catName: "Столица Азии", coords: [34.5, 69.2] },
+  { name: "Дакка", catName: "Столица Азии", coords: [23.8, 90.4] },
+  { name: "Манама", catName: "Столица Азии", coords: [26.2, 50.6] },
+  { name: "Бандар-Сери-Бегаван", catName: "Столица Азии", coords: [4.9, 114.9] },
+  { name: "Тхимпху", catName: "Столица Азии", coords: [27.5, 89.6] },
+  { name: "Дили", catName: "Столица Азии", coords: [-8.6, 125.6] },
+  { name: "Ханой", catName: "Столица Азии", coords: [21, 105.8] },
+  { name: "Тбилиси", catName: "Столица Азии", coords: [41.7, 44.8] },
+  { name: "Иерусалим", catName: "Столица Азии", coords: [31.8, 35.2] },
+  { name: "Нью-Дели", catName: "Столица Азии", coords: [28.6, 77.2] },
+  { name: "Джакарта", catName: "Столица Азии", coords: [-6.2, 106.8] },
+  { name: "Амман", catName: "Столица Азии", coords: [31.95, 35.9] },
+  { name: "Багдад", catName: "Столица Азии", coords: [33.3, 44.4] },
+  { name: "Тегеран", catName: "Столица Азии", coords: [35.7, 51.4] },
+  { name: "Сана", catName: "Столица Азии", coords: [15.4, 44.2] },
+  { name: "Астана", catName: "Столица Азии", coords: [51.2, 71.4] },
+  { name: "Пномпень", catName: "Столица Азии", coords: [11.6, 104.9] },
+  { name: "Доха", catName: "Столица Азии", coords: [25.3, 51.5] },
+  { name: "Бишкек", catName: "Столица Азии", coords: [42.9, 74.6] },
+  { name: "Пекин", catName: "Столица Азии", coords: [39.9, 116.4] },
+  { name: "Пхеньян", catName: "Столица Азии", coords: [39, 125.8] },
+  { name: "Эль-Кувейт", catName: "Столица Азии", coords: [29.4, 48] },
+  { name: "Вьентьян", catName: "Столица Азии", coords: [18, 102.6] },
+  { name: "Бейрут", catName: "Столица Азии", coords: [33.9, 35.5] },
+  { name: "Куала-Лумпур", catName: "Столица Азии", coords: [3.1, 101.7] },
+  { name: "Мале", catName: "Столица Азии", coords: [4.2, 73.5] },
+  { name: "Улан-Батор", catName: "Столица Азии", coords: [47.9, 106.9] },
+  { name: "Нейпьидо", catName: "Столица Азии", coords: [19.8, 96.1] },
+  { name: "Катманду", catName: "Столица Азии", coords: [27.7, 85.3] },
+  { name: "Абу-Даби", catName: "Столица Азии", coords: [24.5, 54.4] },
+  { name: "Маскат", catName: "Столица Азии", coords: [23.6, 58.5] },
+  { name: "Исламабад", catName: "Столица Азии", coords: [33.7, 73.1] },
+  { name: "Сеул", catName: "Столица Азии", coords: [37.6, 127] },
+  { name: "Эр-Рияд", catName: "Столица Азии", coords: [24.7, 46.7] },
+  { name: "Сингапур", catName: "Столица Азии", coords: [1.35, 103.8] },
+  { name: "Дамаск", catName: "Столица Азии", coords: [33.5, 36.3] },
+  { name: "Душанбе", catName: "Столица Азии", coords: [38.6, 68.8] },
+  { name: "Бангкок", catName: "Столица Азии", coords: [13.8, 100.5] },
+  { name: "Ашхабад", catName: "Столица Азии", coords: [37.95, 58.4] },
+  { name: "Анкара", catName: "Столица Азии", coords: [39.9, 32.9] },
+  { name: "Ташкент", catName: "Столица Азии", coords: [41.3, 69.3] },
+  { name: "Манила", catName: "Столица Азии", coords: [14.6, 121] },
+  { name: "Шри-Джаяварденепура-Котте", catName: "Столица Азии", coords: [6.9, 79.9] },
+  { name: "Токио", catName: "Столица Азии", coords: [35.7, 139.7] }
+];
+
+// strany_af
+d.strany_af = [
+  { name: "Алжир", catName: "Страна Африки", coords: [28, 1.7] },
+  { name: "Ангола", catName: "Страна Африки", coords: [-11.2, 17.9] },
+  { name: "Бенин", catName: "Страна Африки", coords: [9.3, 2.3] },
+  { name: "Ботсвана", catName: "Страна Африки", coords: [-22.3, 24.7] },
+  { name: "Буркина-Фасо", catName: "Страна Африки", coords: [12.2, -1.6] },
+  { name: "Бурунди", catName: "Страна Африки", coords: [-3.4, 29.9] },
+  { name: "Габон", catName: "Страна Африки", coords: [-0.8, 11.6] },
+  { name: "Гамбия", catName: "Страна Африки", coords: [13.4, -15.3] },
+  { name: "Гана", catName: "Страна Африки", coords: [7.9, -1] },
+  { name: "Гвинея", catName: "Страна Африки", coords: [9.9, -9.7] },
+  { name: "Гвинея-Бисау", catName: "Страна Африки", coords: [11.8, -15.2] },
+  { name: "Джибути", catName: "Страна Африки", coords: [11.8, 42.6] },
+  { name: "Египет", catName: "Страна Африки", coords: [26.8, 30.8] },
+  { name: "Замбия", catName: "Страна Африки", coords: [-13.1, 27.8] },
+  { name: "Зимбабве", catName: "Страна Африки", coords: [-19, 29.2] },
+  { name: "Кабо-Верде", catName: "Страна Африки", coords: [16, -24] },
+  { name: "Камерун", catName: "Страна Африки", coords: [7.4, 12.4] },
+  { name: "Кения", catName: "Страна Африки", coords: [0, 37.9] },
+  { name: "Коморы", catName: "Страна Африки", coords: [-11.9, 43.9] },
+  { name: "ДР Конго", catName: "Страна Африки", coords: [-4, 21.8] },
+  { name: "Республика Конго", catName: "Страна Африки", coords: [-0.2, 15.8] },
+  { name: "Кот-д'Ивуар", catName: "Страна Африки", coords: [7.5, -5.5] },
+  { name: "Лесото", catName: "Страна Африки", coords: [-29.6, 28.2] },
+  { name: "Либерия", catName: "Страна Африки", coords: [6.4, -9.4] },
+  { name: "Ливия", catName: "Страна Африки", coords: [26.3, 17.2] },
+  { name: "Маврикий", catName: "Страна Африки", coords: [-20.3, 57.6] },
+  { name: "Мавритания", catName: "Страна Африки", coords: [21, -10.9] },
+  { name: "Мадагаскар", catName: "Страна Африки", coords: [-18.8, 46.9] },
+  { name: "Малави", catName: "Страна Африки", coords: [-13.3, 34.3] },
+  { name: "Мали", catName: "Страна Африки", coords: [17.6, -4] },
+  { name: "Марокко", catName: "Страна Африки", coords: [31.8, -7.1] },
+  { name: "Мозамбик", catName: "Страна Африки", coords: [-18.7, 35.5] },
+  { name: "Намибия", catName: "Страна Африки", coords: [-23, 18.5] },
+  { name: "Нигер", catName: "Страна Африки", coords: [17.6, 8.1] },
+  { name: "Нигерия", catName: "Страна Африки", coords: [9.1, 8.7] },
+  { name: "Руанда", catName: "Страна Африки", coords: [-1.9, 29.9] },
+  { name: "Сан-Томе и Принсипи", catName: "Страна Африки", coords: [0.2, 6.6] },
+  { name: "Сейшельские Острова", catName: "Страна Африки", coords: [-4.7, 55.5] },
+  { name: "Сенегал", catName: "Страна Африки", coords: [14.5, -14.5] },
+  { name: "Сомали", catName: "Страна Африки", coords: [5.2, 46.2] },
+  { name: "Судан", catName: "Страна Африки", coords: [12.9, 30.2] },
+  { name: "Сьерра-Леоне", catName: "Страна Африки", coords: [8.5, -11.8] },
+  { name: "Танзания", catName: "Страна Африки", coords: [-6.4, 34.9] },
+  { name: "Того", catName: "Страна Африки", coords: [8.6, 0.8] },
+  { name: "Тунис", catName: "Страна Африки", coords: [33.9, 9.5] },
+  { name: "Уганда", catName: "Страна Африки", coords: [1.4, 32.3] },
+  { name: "ЦАР", catName: "Страна Африки", coords: [6.6, 20.9] },
+  { name: "Чад", catName: "Страна Африки", coords: [15.5, 18.7] },
+  { name: "Экваториальная Гвинея", catName: "Страна Африки", coords: [1.65, 10.3] },
+  { name: "Эритрея", catName: "Страна Африки", coords: [15.2, 39.8] },
+  { name: "Эсватини", catName: "Страна Африки", coords: [-26.5, 31.5] },
+  { name: "Эфиопия", catName: "Страна Африки", coords: [9.1, 40.5] },
+  { name: "ЮАР", catName: "Страна Африки", coords: [-30.6, 22.9] },
+  { name: "Южный Судан", catName: "Страна Африки", coords: [6.9, 31.3] }
+];
+
+// stolitsy_af
+d.stolitsy_af = [
+  { name: "Алжир", catName: "Столица Африки", coords: [36.8, 3.1] },
+  { name: "Луанда", catName: "Столица Африки", coords: [-8.8, 13.2] },
+  { name: "Порто-Ново", catName: "Столица Африки", coords: [6.5, 2.6] },
+  { name: "Габороне", catName: "Столица Африки", coords: [-24.65, 25.9] },
+  { name: "Уагадугу", catName: "Столица Африки", coords: [12.4, -1.5] },
+  { name: "Гитега", catName: "Столица Африки", coords: [-3.4, 29.9] },
+  { name: "Либревиль", catName: "Столица Африки", coords: [0.4, 9.45] },
+  { name: "Банжул", catName: "Столица Африки", coords: [13.45, -16.6] },
+  { name: "Аккра", catName: "Столица Африки", coords: [5.6, -0.2] },
+  { name: "Конакри", catName: "Столица Африки", coords: [9.5, -13.7] },
+  { name: "Бисау", catName: "Столица Африки", coords: [11.9, -15.6] },
+  { name: "Джибути", catName: "Столица Африки", coords: [11.6, 43.15] },
+  { name: "Каир", catName: "Столица Африки", coords: [30, 31.2] },
+  { name: "Лусака", catName: "Столица Африки", coords: [-15.4, 28.3] },
+  { name: "Хараре", catName: "Столица Африки", coords: [-17.8, 31] },
+  { name: "Прая", catName: "Столица Африки", coords: [14.9, -23.5] },
+  { name: "Яунде", catName: "Столица Африки", coords: [3.85, 11.5] },
+  { name: "Найроби", catName: "Столица Африки", coords: [-1.3, 36.8] },
+  { name: "Морони", catName: "Столица Африки", coords: [-11.7, 43.25] },
+  { name: "Киншаса", catName: "Столица Африки", coords: [-4.25, 15.28] },
+  { name: "Браззавиль", catName: "Столица Африки", coords: [-4.32, 15.3] },
+  { name: "Ямусукро", catName: "Столица Африки", coords: [6.8, -5.3] },
+  { name: "Масеру", catName: "Столица Африки", coords: [-29.3, 27.5] },
+  { name: "Монровия", catName: "Столица Африки", coords: [6.3, -10.8] },
+  { name: "Триполи", catName: "Столица Африки", coords: [32.9, 13.2] },
+  { name: "Порт-Луи", catName: "Столица Африки", coords: [-20.2, 57.5] },
+  { name: "Нуакшот", catName: "Столица Африки", coords: [18.1, -16] },
+  { name: "Антананариву", catName: "Столица Африки", coords: [-18.9, 47.5] },
+  { name: "Лилонгве", catName: "Столица Африки", coords: [-14, 33.8] },
+  { name: "Бамако", catName: "Столица Африки", coords: [12.6, -8] },
+  { name: "Рабат", catName: "Столица Африки", coords: [34, -6.8] },
+  { name: "Мапуту", catName: "Столица Африки", coords: [-26, 32.6] },
+  { name: "Виндхук", catName: "Столица Африки", coords: [-22.6, 17.1] },
+  { name: "Ниамей", catName: "Столица Африки", coords: [13.5, 2.1] },
+  { name: "Абуджа", catName: "Столица Африки", coords: [9.1, 7.5] },
+  { name: "Кигали", catName: "Столица Африки", coords: [-1.95, 30.1] },
+  { name: "Сан-Томе", catName: "Столица Африки", coords: [0.34, 6.7] },
+  { name: "Виктория (Сейшелы)", catName: "Столица Африки", coords: [-4.6, 55.45] },
+  { name: "Дакар", catName: "Столица Африки", coords: [14.7, -17.4] },
+  { name: "Могадишо", catName: "Столица Африки", coords: [2, 45.3] },
+  { name: "Хартум", catName: "Столица Африки", coords: [15.6, 32.5] },
+  { name: "Фритаун", catName: "Столица Африки", coords: [8.5, -13.2] },
+  { name: "Додома", catName: "Столица Африки", coords: [-6.2, 35.7] },
+  { name: "Ломе", catName: "Столица Африки", coords: [6.1, 1.2] },
+  { name: "Тунис", catName: "Столица Африки", coords: [36.8, 10.2] },
+  { name: "Кампала", catName: "Столица Африки", coords: [0.3, 32.6] },
+  { name: "Банги", catName: "Столица Африки", coords: [4.4, 18.6] },
+  { name: "Нджамена", catName: "Столица Африки", coords: [12.1, 15.05] },
+  { name: "Малабо", catName: "Столица Африки", coords: [3.75, 8.8] },
+  { name: "Асмэра", catName: "Столица Африки", coords: [15.3, 38.9] },
+  { name: "Мбабане", catName: "Столица Африки", coords: [-26.3, 31.1] },
+  { name: "Аддис-Абеба", catName: "Столица Африки", coords: [9, 38.75] },
+  { name: "Претория", catName: "Столица Африки", coords: [-25.75, 28.2] },
+  { name: "Джуба", catName: "Столица Африки", coords: [4.85, 31.6] }
+];
+
+// strany_na
+d.strany_na = [
+  { name: "Антигуа и Барбуда", catName: "Страна Северной Америки", coords: [17.1, -61.8] },
+  { name: "Багамские Острова", catName: "Страна Северной Америки", coords: [25, -77.4] },
+  { name: "Барбадос", catName: "Страна Северной Америки", coords: [13.2, -59.5] },
+  { name: "Белиз", catName: "Страна Северной Америки", coords: [17.2, -88.5] },
+  { name: "Гаити", catName: "Страна Северной Америки", coords: [19, -72.4] },
+  { name: "Гватемала", catName: "Страна Северной Америки", coords: [15.8, -90.2] },
+  { name: "Гондурас", catName: "Страна Северной Америки", coords: [15.2, -86.2] },
+  { name: "Гренада", catName: "Страна Северной Америки", coords: [12.1, -61.7] },
+  { name: "Доминика", catName: "Страна Северной Америки", coords: [15.4, -61.4] },
+  { name: "Доминиканская Республика", catName: "Страна Северной Америки", coords: [18.7, -70.2] },
+  { name: "Канада", catName: "Страна Северной Америки", coords: [56.1, -106.3] },
+  { name: "Коста-Рика", catName: "Страна Северной Америки", coords: [9.7, -83.8] },
+  { name: "Куба", catName: "Страна Северной Америки", coords: [21.5, -77.8] },
+  { name: "Мексика", catName: "Страна Северной Америки", coords: [23.6, -102.5] },
+  { name: "Никарагуа", catName: "Страна Северной Америки", coords: [12.9, -85.2] },
+  { name: "Панама", catName: "Страна Северной Америки", coords: [8.5, -80.8] },
+  { name: "Сальвадор", catName: "Страна Северной Америки", coords: [13.8, -88.9] },
+  { name: "Сент-Винсент и Гренадины", catName: "Страна Северной Америки", coords: [13.3, -61.2] },
+  { name: "Сент-Китс и Невис", catName: "Страна Северной Америки", coords: [17.3, -62.7] },
+  { name: "Сент-Люсия", catName: "Страна Северной Америки", coords: [13.9, -61] },
+  { name: "США", catName: "Страна Северной Америки", coords: [37.1, -95.7] },
+  { name: "Тринидад и Тобаго", catName: "Страна Северной Америки", coords: [10.7, -61.2] },
+  { name: "Ямайка", catName: "Страна Северной Америки", coords: [18.1, -77.3] }
+];
+
+// stolitsy_na
+d.stolitsy_na = [
+  { name: "Сент-Джонс", catName: "Столица Северной Америки", coords: [17.1, -61.85] },
+  { name: "Нассау", catName: "Столица Северной Америки", coords: [25.05, -77.35] },
+  { name: "Бриджтаун", catName: "Столица Северной Америки", coords: [13.1, -59.6] },
+  { name: "Бельмопан", catName: "Столица Северной Америки", coords: [17.25, -88.8] },
+  { name: "Порт-о-Пренс", catName: "Столица Северной Америки", coords: [18.5, -72.3] },
+  { name: "Гватемала (город)", catName: "Столица Северной Америки", coords: [14.6, -90.5] },
+  { name: "Тегусигальпа", catName: "Столица Северной Америки", coords: [14.1, -87.2] },
+  { name: "Сент-Джорджес", catName: "Столица Северной Америки", coords: [12.05, -61.75] },
+  { name: "Розо", catName: "Столица Северной Америки", coords: [15.3, -61.4] },
+  { name: "Санто-Доминго", catName: "Столица Северной Америки", coords: [18.5, -69.9] },
+  { name: "Оттава", catName: "Столица Северной Америки", coords: [45.4, -75.7] },
+  { name: "Сан-Хосе", catName: "Столица Северной Америки", coords: [9.9, -84.1] },
+  { name: "Гавана", catName: "Столица Северной Америки", coords: [23.1, -82.4] },
+  { name: "Мехико", catName: "Столица Северной Америки", coords: [19.4, -99.1] },
+  { name: "Манагуа", catName: "Столица Северной Америки", coords: [12.1, -86.3] },
+  { name: "Панама (город)", catName: "Столица Северной Америки", coords: [9, -79.5] },
+  { name: "Сан-Сальвадор", catName: "Столица Северной Америки", coords: [13.7, -89.2] },
+  { name: "Кингстаун", catName: "Столица Северной Америки", coords: [13.15, -61.2] },
+  { name: "Бастер", catName: "Столица Северной Америки", coords: [17.3, -62.7] },
+  { name: "Кастри", catName: "Столица Северной Америки", coords: [14, -61] },
+  { name: "Вашингтон", catName: "Столица Северной Америки", coords: [38.9, -77] },
+  { name: "Порт-оф-Спейн", catName: "Столица Северной Америки", coords: [10.65, -61.5] },
+  { name: "Кингстон", catName: "Столица Северной Америки", coords: [18, -76.8] }
+];
+
+// strany_sa
+d.strany_sa = [
+  { name: "Аргентина", catName: "Страна Южной Америки", coords: [-38.4, -63.6] },
+  { name: "Боливия", catName: "Страна Южной Америки", coords: [-16.3, -63.6] },
+  { name: "Бразилия", catName: "Страна Южной Америки", coords: [-14.2, -51.9] },
+  { name: "Венесуэла", catName: "Страна Южной Америки", coords: [6.4, -66.6] },
+  { name: "Гайана", catName: "Страна Южной Америки", coords: [4.9, -58.9] },
+  { name: "Колумбия", catName: "Страна Южной Америки", coords: [4.6, -74.3] },
+  { name: "Парагвай", catName: "Страна Южной Америки", coords: [-23.4, -58.4] },
+  { name: "Перу", catName: "Страна Южной Америки", coords: [-9.2, -75] },
+  { name: "Суринам", catName: "Страна Южной Америки", coords: [3.9, -56] },
+  { name: "Уругвай", catName: "Страна Южной Америки", coords: [-32.5, -55.8] },
+  { name: "Чили", catName: "Страна Южной Америки", coords: [-35.7, -71.5] },
+  { name: "Эквадор", catName: "Страна Южной Америки", coords: [-1.8, -78.2] }
+];
+
+// stolitsy_sa
+d.stolitsy_sa = [
+  { name: "Буэнос-Айрес", catName: "Столица Южной Америки", coords: [-34.6, -58.4] },
+  { name: "Сукре", catName: "Столица Южной Америки", coords: [-19, -65.3] },
+  { name: "Ла-Пас", catName: "Столица Южной Америки", coords: [-16.5, -68.15] },
+  { name: "Бразилиа", catName: "Столица Южной Америки", coords: [-15.8, -47.9] },
+  { name: "Каракас", catName: "Столица Южной Америки", coords: [10.5, -66.9] },
+  { name: "Джорджтаун", catName: "Столица Южной Америки", coords: [6.8, -58.2] },
+  { name: "Богота", catName: "Столица Южной Америки", coords: [4.7, -74.1] },
+  { name: "Асунсьон", catName: "Столица Южной Америки", coords: [-25.3, -57.6] },
+  { name: "Лима", catName: "Столица Южной Америки", coords: [-12, -77] },
+  { name: "Парамарибо", catName: "Столица Южной Америки", coords: [5.85, -55.2] },
+  { name: "Монтевидео", catName: "Столица Южной Америки", coords: [-34.9, -56.2] },
+  { name: "Сантьяго", catName: "Столица Южной Америки", coords: [-33.45, -70.7] },
+  { name: "Кито", catName: "Столица Южной Америки", coords: [-0.2, -78.5] }
+];
+
+// strany_oc
+d.strany_oc = [
+  { name: "Австралия", catName: "Страна Океании", coords: [-25.3, 133.8] },
+  { name: "Вануату", catName: "Страна Океании", coords: [-15.4, 167] },
+  { name: "Кирибати", catName: "Страна Океании", coords: [1.9, -157.4] },
+  { name: "Маршалловы Острова", catName: "Страна Океании", coords: [7.1, 171.2] },
+  { name: "Микронезия", catName: "Страна Океании", coords: [7.4, 150.5] },
+  { name: "Науру", catName: "Страна Океании", coords: [-0.5, 166.9] },
+  { name: "Новая Зеландия", catName: "Страна Океании", coords: [-40.9, 174.9] },
+  { name: "Палау", catName: "Страна Океании", coords: [7.5, 134.6] },
+  { name: "Папуа — Новая Гвинея", catName: "Страна Океании", coords: [-6.3, 144] },
+  { name: "Самоа", catName: "Страна Океании", coords: [-13.8, -172.1] },
+  { name: "Соломоновы Острова", catName: "Страна Океании", coords: [-9.6, 160.2] },
+  { name: "Тонга", catName: "Страна Океании", coords: [-21.2, -175.2] },
+  { name: "Тувалу", catName: "Страна Океании", coords: [-7.1, 177.6] },
+  { name: "Фиджи", catName: "Страна Океании", coords: [-17.7, 178.1] }
+];
+
+// stolitsy_oc
+d.stolitsy_oc = [
+  { name: "Канберра", catName: "Столица Океании", coords: [-35.3, 149.1] },
+  { name: "Порт-Вила", catName: "Столица Океании", coords: [-17.7, 168.3] },
+  { name: "Южная Тарава", catName: "Столица Океании", coords: [1.45, 173] },
+  { name: "Маджуро", catName: "Столица Океании", coords: [7.1, 171.4] },
+  { name: "Паликир", catName: "Столица Океании", coords: [6.9, 158.2] },
+  { name: "Ярен", catName: "Столица Океании", coords: [-0.55, 166.9] },
+  { name: "Веллингтон", catName: "Столица Океании", coords: [-41.3, 174.8] },
+  { name: "Нгерулмуд", catName: "Столица Океании", coords: [7.5, 134.6] },
+  { name: "Порт-Морсби", catName: "Столица Океании", coords: [-9.5, 147.2] },
+  { name: "Апиа", catName: "Столица Океании", coords: [-13.8, -171.8] },
+  { name: "Хониара", catName: "Столица Океании", coords: [-9.4, 160] },
+  { name: "Нукуалофа", catName: "Столица Океании", coords: [-21.1, -175.2] },
+  { name: "Фунафути", catName: "Столица Океании", coords: [-8.5, 179.2] },
+  { name: "Сува", catName: "Столица Океании", coords: [-18.1, 178.4] }
+];
+
+// ====== ВСЕ СТРАНЫ И СТОЛИЦЫ ======
+d.strany_all = d.strany_eu.concat(d.strany_as, d.strany_af, d.strany_na, d.strany_sa, d.strany_oc);
+d.stolitsy_all = d.stolitsy_eu.concat(d.stolitsy_as, d.stolitsy_af, d.stolitsy_na, d.stolitsy_sa, d.stolitsy_oc);
+
+// ====== ПЕРЕМЕННЫЕ ======
+var map, pts = [], list, q, i, ok, t;
+var orange = '#e07a3f';
+var green = '#5aa469';
+var red = '#d1495b';
+
+function $(id) {
+  return document.getElementById(id);
+}
+
+// ====== КАРТА ======
+function initMap() {
+  map = L.map('map').setView([20, 0], 2);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 16,
+    attribution: 'Tiles &copy; Esri'
+  }).addTo(map);
+}
+
+// ====== ТЕСТ ======
+function start() {
+  var s = $('category');
+  list = d[s.value];
+  ok = 0;
+  i = 0;
+  $('results').style.display = 'none';
+  $('target').style.display = 'block';
+  $('task').style.display = 'block';
+  $('badge').innerText = s.options[s.selectedIndex].text + ' (' + list.length + ')';
+  $('total').innerText = list.length;
+
+  for (var n = 0; n < pts.length; n++) {
+    map.removeLayer(pts[n].m);
+  }
+  pts = [];
+
+  q = list.slice();
+  q.sort(function () { return Math.random() - 0.5; });
+
+  map.setView([20, 0], 2);
+  list.forEach(function (o) {
+    var m = L.circleMarker(o.coords, { radius: 6, color: 'white', weight: 2, fillColor: orange, fillOpacity: 1 }).addTo(map);
+    m.on('click', function () { guess(o, m); });
+    pts.push({ o: o, m: m });
+  });
+  $('hint').innerText = '💡 Маркеров: ' + list.length + '. Колесо мыши — приблизить карту';
+  show();
+}
+
+function show() {
+  $('feedback').className = '';
+  $('next-btn').style.display = 'none';
+  if (i >= q.length) {
+    end();
+    return;
+  }
+  t = q[i];
+  $('step').innerText = i + 1;
+  $('target-label').innerText = t.catName;
+  $('target-name').innerText = t.name;
+  pts.forEach(function (p) { p.m.setStyle({ fillColor: orange }); });
+}
+
+function guess(o, m) {
+  if ($('next-btn').style.display == 'block') return;
+  var b = $('feedback');
+  if (o == t) {
+    ok++;
+    b.className = 'correct';
+    b.innerHTML = '<b>Верно! 🎉</b> Это <b>' + t.name + '</b>.';
+    m.setStyle({ fillColor: green });
+  } else {
+    b.className = 'wrong';
+    b.innerHTML = '<b>Неверно.</b> Вы нажали на «' + o.name + '».<br>Нужно было найти: <b>' + t.name + '</b>.';
+    m.setStyle({ fillColor: red });
+    pts.forEach(function (p) {
+      if (p.o == t) p.m.setStyle({ fillColor: green });
+    });
+  }
+  $('next-btn').style.display = 'block';
+}
+
+function next() {
+  i++;
+  show();
+}
+
+function end() {
+  $('target').style.display = 'none';
+  $('task').style.display = 'none';
+  var n = q.length;
+  var p = Math.round(ok / n * 100);
+  var g, text;
+  if (p >= 90) {
+    g = 5;
+    text = 'Превосходно! Почти всё указано верно.';
+  } else if (p >= 75) {
+    g = 4;
+    text = 'Хороший результат!';
+  } else if (p >= 60) {
+    g = 3;
+    text = 'Удовлетворительно. Стоит повторить.';
+  } else {
+    g = 2;
+    text = 'Тест не сдан. Повторите объекты этой категории.';
+  }
+  $('score').innerText = 'Правильных ответов: ' + ok + ' из ' + n + ' (' + p + '%)';
+  $('grade').innerText = 'Оценка: ' + g;
+  if (g == 2) {
+    $('grade').className = 'bad';
+  } else {
+    $('grade').className = '';
+  }
+  $('results-desc').innerText = text;
+  $('results').style.display = 'block';
+}
+
+// ====== ЗАПУСК ======
+window.onload = function () {
+  initMap();
+  start();
+};
+</script>
+</body>
+</html>
